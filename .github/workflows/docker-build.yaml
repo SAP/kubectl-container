@@ -1,11 +1,9 @@
 name: Build kubectl image
 on:
   schedule:
-    - cron: "13 0 * * *" # This will run the job daily at 00:13
+    # This will run the job daily at 00:13 UTC
+    - cron: "13 0 * * *"
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 env:
   REGISTRY: ghcr.io
@@ -19,6 +17,49 @@ defaults:
 jobs:
   publish-docker:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        k8s_version:
+          [
+            v1.26.0,
+            v1.26.1,
+            v1.26.2,
+            v1.26.3,
+            v1.26.4,
+            v1.26.5,
+            v1.26.6,
+            v1.26.7,
+            v1.26.8,
+            v1.26.9,
+            v1.26.10,
+            v1.26.11,
+            v1.26.12,
+            v1.26.13,
+            v1.26.14,
+            v1.27.0,
+            v1.27.1,
+            v1.27.2,
+            v1.27.3,
+            v1.27.4,
+            v1.27.5,
+            v1.27.6,
+            v1.27.7,
+            v1.27.8,
+            v1.27.9,
+            v1.27.10,
+            v1.27.11,
+            v1.28.0,
+            v1.28.1,
+            v1.28.2,
+            v1.28.3,
+            v1.28.4,
+            v1.28.5,
+            v1.28.6,
+            v1.28.7,
+            v1.29.0,
+            v1.29.1
+          ]
+      max-parallel: 1
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -45,40 +86,40 @@ jobs:
         run: |
           regctl registry login $REGISTRY --user ${{ github.actor }} --pass-stdin <<< ${{ github.token }}
 
-      - name: Fetch latest k8s version
-        id: latest-k8s-version
-        run: |
-          echo "version=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)" >> $GITHUB_OUTPUT
-
-      - name: Fetch latest docker build version
-        id: latest-image-version
-        run: |
-          echo "version=$(regctl tag list ${{ steps.prepare-repository-name.outputs.repository }} | sort -V | tail -1)" >> $GITHUB_OUTPUT
-
-      - name: Print both versions
-        run: |
-          echo "Latest k8s version: ${{ steps.latest-k8s-version.outputs.version }}"
-          echo "Latest image version: ${{ steps.latest-image-version.outputs.version }}"
-
-      - name: Compare versions
-        id: compare-versions
-        run: |
-          if [ $(semver compare ${{ steps.latest-k8s-version.outputs.version }} ${{ steps.latest-image-version.outputs.version }}) -lt 0 ]
-          then
-            echo "Latest k8s version (${{ steps.latest-k8s-version.outputs.version }}) is lower than latest built image version (${{ steps.latest-image-version.outputs.version }}); skipping build ..."
-            exit 0
-          elif [ $(semver compare ${{ steps.latest-k8s-version.outputs.version }} ${{ steps.latest-image-version.outputs.version }}) -gt 0 ]
-          then
-            echo "Latest k8s version (${{ steps.latest-k8s-version.outputs.version }}) is higher than latest built image version (${{ steps.latest-image-version.outputs.version }}); building ..."
-            echo "build_image=true" >> $GITHUB_OUTPUT
-          fi
+#      - name: Fetch latest k8s version
+#        id: latest-k8s-version
+#        run: |
+#          echo "version=$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)" >> $GITHUB_OUTPUT
+#
+#      - name: Fetch latest docker build version
+#        id: latest-image-version
+#        run: |
+#          echo "version=$(regctl tag list ${{ steps.prepare-repository-name.outputs.repository }} | sort -V | tail -1)" >> $GITHUB_OUTPUT
+#
+#      - name: Print both versions
+#        run: |
+#          echo "Latest k8s version: ${{ steps.latest-k8s-version.outputs.version }}"
+#          echo "Latest image version: ${{ steps.latest-image-version.outputs.version }}"
+#
+#      - name: Compare versions
+#        id: compare-versions
+#        run: |
+#          if [ $(semver compare ${{ steps.latest-k8s-version.outputs.version }} ${{ steps.latest-image-version.outputs.version }}) -lt 0 ]
+#          then
+#            echo "Latest k8s version (${{ steps.latest-k8s-version.outputs.version }}) is lower than latest built image version (${{ steps.latest-image-version.outputs.version }}); skipping build ..."
+#            exit 0
+#          elif [ $(semver compare ${{ steps.latest-k8s-version.outputs.version }} ${{ steps.latest-image-version.outputs.version }}) -gt 0 ]
+#          then
+#            echo "Latest k8s version (${{ steps.latest-k8s-version.outputs.version }}) is higher than latest built image version (${{ steps.latest-image-version.outputs.version }}); building ..."
+#            echo "build_image=true" >> $GITHUB_OUTPUT
+#          fi
 
       - name: Setup Docker Buildx
-        if: steps.compare-versions.outputs.build_image == 'true'
+#        if: steps.compare-versions.outputs.build_image == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to the Container registry
-        if: steps.compare-versions.outputs.build_image == 'true'
+#        if: steps.compare-versions.outputs.build_image == 'true'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -86,13 +127,14 @@ jobs:
           password: ${{ github.token }}
 
       - name: Build and push docker image
-        if: steps.compare-versions.outputs.build_image == 'true'
+#        if: steps.compare-versions.outputs.build_image == 'true'
         uses: docker/build-push-action@v5
         with:
           platforms: linux/amd64,linux/arm64
           context: .
           file: ./Dockerfile
-          tags: ${{ steps.prepare-repository-name.outputs.repository }}:${{ steps.latest-k8s-version.outputs.version }}
+          tags: ${{ steps.prepare-repository-name.outputs.repository }}:${{ matrix.k8s_version }}
+#          tags: ${{ steps.prepare-repository-name.outputs.repository }}:${{ steps.latest-k8s-version.outputs.version }}
           cache-from: |
             type=gha,scope=sha-${{ github.sha }}
             type=gha,scope=${{ github.ref_name }}
@@ -101,5 +143,6 @@ jobs:
           cache-to: |
             type=gha,scope=sha-${{ github.sha }},mode=max
             type=gha,scope=${{ github.ref_name }},mode=max
-          build-args: "KUBECTL_VERSION=${{ steps.latest-k8s-version.outputs.version }}"
+          build-args: "KUBECTL_VERSION=${{ matrix.k8s_version }}"
+#          build-args: "KUBECTL_VERSION=${{ steps.latest-k8s-version.outputs.version }}"
           push: true
