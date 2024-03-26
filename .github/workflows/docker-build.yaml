@@ -83,11 +83,15 @@ jobs:
         run: |
           unbuilt_versions=$(comm -23 <(sort k8s_released_versions.txt) <(sort gh_com_tags.txt) | tr '\n' ',' | sed 's/,$//')
 
-          [[ "${unbuilt_versions}" == "" ]] && break
-
-          echo "Unbuilt versions: $unbuilt_versions"
-          echo "matrix={\"k8s-version\":[$(echo $unbuilt_versions | sed 's/\([^,]*\)/"\1"/g')]}" >> $GITHUB_OUTPUT
-          echo "build=true" >> $GITHUB_OUTPUT
+          if [[ "${unbuilt_versions}" == "" ]]
+          then
+            echo "All the released k8s versions were built already"
+            exit 0
+          else
+            echo "Unbuilt versions: $unbuilt_versions"
+            echo "matrix={\"k8s-version\":[$(echo $unbuilt_versions | sed 's/\([^,]*\)/"\1"/g')]}" >> $GITHUB_OUTPUT
+            echo "build=true" >> $GITHUB_OUTPUT
+          fi
 
   build-image:
     name: Build image
