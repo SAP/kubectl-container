@@ -4,11 +4,13 @@
 
 ## About this project
 
-A lightweight container housing kubectl and curl for easy interaction with Kubernetes and other APIs.
+An alpine based container housing kubectl, curl and openssl for easy interaction with Kubernetes and APIs.
 
-## Requirements and Setup
+## Example usage
 
-*Insert a short description what is required to get your project running...*
+```
+docker run ghcr.io/sap/kubectl-container:v<K8s version> get pods
+```
 
 ## Support, Feedback, Contributing
 
