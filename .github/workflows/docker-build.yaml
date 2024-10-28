@@ -66,7 +66,7 @@ jobs:
             [[ "${tag_names}" == "" ]] && break
 
             tag_names=$(echo "$tag_names" | grep -vE 'alpha|beta|rc')
-            echo "${tag_names}" | awk '/^v1\.[2-9][6-9]\..*/||/^v[2-9]\..*/' | sort -V >> k8s_released_versions.txt
+            echo "${tag_names}" | awk '/^v1\.(2[6-9]|[3-9][0-9])\..*/||/^v[2-9]\..*/' | sort -V >> k8s_released_versions.txt
             sed -i '/^$/d' k8s_released_versions.txt
 
             ((page=page+1))
