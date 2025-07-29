@@ -3,6 +3,12 @@ on:
   schedule:
     # This will run the job daily at 00:13 UTC
     - cron: "13 0 * * *"
+  push:
+    branches:
+      - main
+      - i305955
+    paths:
+      - 'Dockerfile'
   workflow_dispatch:
 
 env:
@@ -81,7 +87,19 @@ jobs:
       - name: Print unbuilt versions and prepare matrix
         id: prepare-matrix
         run: |
+          echo "k8s released versions:"
+          cat k8s_released_versions.txt
+          echo "gh.com tags:"
+          cat gh_com_tags.txt
+
           unbuilt_versions=$(comm -23 <(sort k8s_released_versions.txt) <(sort gh_com_tags.txt) | tr '\n' ',' | sed 's/,$//')
+
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "Triggered by Dockerfile change => building all versions"
+          #   unbuilt_versions=$(cat k8s_released_versions.txt | tr '\n' ',' | sed 's/,$//')
+          # else
+          #   unbuilt_versions=$(comm -23 <(sort k8s_released_versions.txt) <(sort gh_com_tags.txt) | tr '\n' ',' | sed 's/,$//')
+          fi
 
           if [[ "${unbuilt_versions}" == "" ]]
           then
