@@ -91,8 +91,9 @@ jobs:
           cat k8s_released_versions.txt
           echo "gh.com tags:"
           cat gh_com_tags.txt
-          echo "latest 5 tags:"
-          regctl tag list ${{ steps.prepare-repository-name.outputs.repository }} --limit 5
+          echo "regctl unsorted tags:"
+          regctl tag list ${{ steps.prepare-repository-name.outputs.repository }} 
+
 
           unbuilt_versions=$(comm -23 <(sort k8s_released_versions.txt) <(sort gh_com_tags.txt) | tr '\n' ',' | sed 's/,$//')
 
