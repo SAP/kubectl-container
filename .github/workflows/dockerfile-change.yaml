@@ -1,0 +1,107 @@
+name: Rebuild latest kubectl images on Dockerfile change
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - Dockerfile
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  REGCTL_VERSION: v0.5.7
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  rebuild-latest:
+    name: Rebuild latest N images
+    runs-on: ubuntu-latest
+    env:
+      N: 4  # Number of latest versions to rebuild
+    outputs:
+      matrix: ${{ steps.fetch-latest-tags.outputs.matrix }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup regctl
+        uses: regclient/actions/regctl-installer@main
+        with:
+          release: ${{ env.REGCTL_VERSION }}
+          install-dir: ${{ runner.temp }}/bin
+
+      - name: Prepare repository name
+        id: prepare-repository-name
+        run: |
+          repository=$REGISTRY/${{ github.repository }}
+          echo "repository=${repository,,}" >> $GITHUB_OUTPUT
+
+      - name: Fetch latest patch version from latest 4 minors
+        id: fetch-latest-tags
+        run: |
+          tags=$(regctl tag list ${{ steps.prepare-repository-name.outputs.repository }} \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sed 's/^v//' \
+            | sort -Vr)
+
+          # Extract unique minor versions, sorted descending
+          minors=$(echo "$tags" | awk -F. '!seen[$1"."$2]++ { print $1"."$2 }' | head -n 4)
+
+          selected_tags=()
+          for minor in $minors; do
+            match=$(echo "$tags" | grep "^${minor}\." | head -n 1)
+            if [[ -n "$match" ]]; then
+              selected_tags+=("v$match")
+            fi
+          done
+
+          if [[ ${#selected_tags[@]} -eq 0 ]]; then
+            echo "❌ No matching versions found"
+            exit 1
+          fi
+
+          versions=$(printf '%s\n' "${selected_tags[@]}" | jq -R -s -c 'split("\n")[:-1]')
+          echo "matrix={\"k8s-version\": $versions}" >> $GITHUB_OUTPUT
+
+  rebuild-image:
+    name: Rebuild image
+    needs: rebuild-latest
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.rebuild-latest.outputs.matrix) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare repository name
+        id: prepare-repository-name
+        run: |
+          repository=$REGISTRY/${{ github.repository }}
+          echo "repository=${repository,,}" >> $GITHUB_OUTPUT
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Build and push docker image
+        uses: docker/build-push-action@v5
+        with:
+          platforms: linux/amd64,linux/arm64
+          context: .
+          file: ./Dockerfile
+          tags: ${{ steps.prepare-repository-name.outputs.repository }}:${{ matrix.k8s-version }}
+          build-args: |
+            KUBECTL_VERSION=${{ matrix.k8s-version }}
+          push: true
