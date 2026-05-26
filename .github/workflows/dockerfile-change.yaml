@@ -12,6 +12,10 @@ env:
   REGISTRY: ghcr.io
   REGCTL_VERSION: v0.5.7
 
+permissions:
+  contents: read
+  packages: write
+
 defaults:
   run:
     shell: bash
